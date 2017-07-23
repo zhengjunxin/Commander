@@ -1,0 +1,29 @@
+{
+  "name": "commander",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "make test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhengjunxin/commander.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/zhengjunxin/commander/issues"
+  },
+  "homepage": "https://github.com/zhengjunxin/commander#readme",
+  "devDependencies": {
+    "nodemon": "^1.11.0",
+    "should": "^11.2.1",
+    "sinon": "^2.3.8"
+  },
+  "readme": "ERROR: No README data found!",
+  "_id": "commander@0.0.1"
+}
