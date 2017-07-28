@@ -1,5 +1,7 @@
 const EventEmitter = require('events').EventEmitter
 const path = require('path')
+const fs = require('fs')
+const spawn = require('child_process').spawn
 
 function pad(str, width) {
     var len = Math.max(0, width - str.length);
@@ -74,6 +76,7 @@ class Command extends EventEmitter {
         this._noHelp = false
         this._args = []
         this.executables = false
+        this._execs = {}
     }
     name(name) {
         if (arguments.length) {
@@ -92,7 +95,25 @@ class Command extends EventEmitter {
         const parsed = this.parseOptions(this.normalize(argv.slice(2)))
         const args = this.args = parsed.args
 
-        this.parseArgs(args, parsed.unknown)
+        const result = this.parseArgs(args, parsed.unknown)
+
+        const name = result.args[0]
+        let alias
+        if (name) {
+            alias = this.commands.find(command => command.alias() === name)
+        }
+
+        if (this._execs[name]) {
+            this.executeSubCommand(argv, args, parsed.unknown)
+        }
+        else if (alias) {
+            args[0] = alias.name()
+            this.executeSubCommand(argv, args, parsed.unknown)
+        }
+        else if (this.defaultCommand) {
+            args.unshift(this.defaultCommand)
+            this.executeSubCommand(argv, args, parsed.unknown)
+        }
     }
     normalize(args) {
         let result = []
@@ -208,6 +229,7 @@ class Command extends EventEmitter {
         else if (unknown.length) {
             this.unknownOption(unknown)
         }
+        return this
     }
     command(flag, desc, opts = {}) {
         const args = flag.split(' ')
@@ -216,7 +238,12 @@ class Command extends EventEmitter {
 
         if (desc) {
             this.executables = true
+            this._execs[cmd.name()] = true
             cmd.description(desc)
+        }
+
+        if (opts.isDefault) {
+            this.defaultCommand = cmd.name()
         }
 
         cmd.parseExpectedArgs(args)
@@ -227,13 +254,31 @@ class Command extends EventEmitter {
         }
 
         cmd.parent = this
+
+        // @ TODO 为什么要这么搞呢？
+        if (desc) return this
         return cmd
     }
     parseExpectedArgs(args) {
         this._args = args.map(arg => new Arg(arg)).filter(arg => arg.name)
     }
     alias(alias) {
-        this._alias = alias
+        let command
+
+        // 如果有多个 commands 的话，则 alias 是最新的那个 command 的
+        if (this.commands.length) {
+            command = this.commands[this.commands.length - 1]
+        }
+        // 否则，则是当前 command 的
+        else {
+            command = this
+        }
+
+        if (!arguments.length) {
+            return this._alias
+        }
+
+        command._alias = alias
         return this
     }
     description(desc) {
@@ -376,7 +421,7 @@ class Command extends EventEmitter {
             '  Usage: ' + cmdName + ' ' + this.usage(),
             '',
         ]
-
+        
         const desc = this._description ? [
             '  ' + this._description
             , ''
@@ -392,7 +437,7 @@ class Command extends EventEmitter {
 
         const commandHelp = this.commandHelp()
         const cmds = commandHelp ? [commandHelp] : []
-
+        
         return usage
             .concat(desc)
             .concat(options)
@@ -447,7 +492,7 @@ class Command extends EventEmitter {
         ].join('\n');
     }
     largestOptionLength() {
-        return this.options.reduce((max, optoin) => Math.max(max, option.flags.length), 0)
+        return this.options.reduce((max, option) => Math.max(max, option.flags.length), 0)
     }
     addImplicitHelpCommand() {
         this.command('help [cmd]', 'display help for [cmd]')
@@ -483,7 +528,73 @@ class Command extends EventEmitter {
         console.error();
         process.exit(1);
     }
+    executeSubCommand(argv, args, unknown) {
+        const file = path.basename(argv[1], '.js') + '-' + args[0]
+        const localBin = path.join(path.dirname(argv[1]), file)
+        let bin
+        let exists
+        let isExplicitJS = false
+        let proc
+
+        if (args[0] === 'help' && args.length === 1) {
+            this.help()
+        }
+
+        if (fs.existsSync(localBin + '.js')) {
+            exists = true
+            isExplicitJS = true
+            bin = localBin + '.js'
+        }
+        else if (fs.existsSync(localBin)) {
+            exists = true
+            bin = localBin
+        }
+
+        if (process.platform !== 'win32') {
+            if (isExplicitJS) {
+                args.shift()
+                args.unshift(bin)
+                proc = spawn(argv[0], args, {
+                    stdio: 'inherit',
+                    customFds: [0, 1, 2],
+                })
+            }
+            else {
+                proc = spawn(bin, [], {
+                    stdio: 'inherit',
+                    customFds: [0, 1, 2],
+                })
+            }
+        }
+        else {
+            args.unshift(bin);
+            proc = spawn(process.execPath, args, { stdio: 'inherit' });
+        }
+
+
+        var signals = ['SIGUSR1', 'SIGUSR2', 'SIGTERM', 'SIGINT', 'SIGHUP'];
+        signals.forEach(function (signal) {
+            process.on(signal, function () {
+                if ((proc.killed === false) && (proc.exitCode === null)) {
+                    proc.kill(signal);
+                }
+            });
+        });
+        proc.on('close', process.exit.bind(process))
+        proc.on('error', (err) => {
+            if (err.code == "ENOENT") {
+                console.error('\n  %s(1) does not exist, try --help\n', bin);
+            }
+            else if (err.code === "EACCES") {
+                console.error('\n  %s(1) not executable. try chmod or run with root\n', bin);
+            }
+            process.exit(1)
+        })
+    }
+    help() {
+        this.outputHelp()
+        process.exit()
+    }
 }
 
 module.exports = new Command()
-
