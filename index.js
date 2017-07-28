@@ -92,6 +92,10 @@ class Command extends EventEmitter {
 
         this._name = this._name || path.basename(argv[1], '.js')
 
+        if (this.executables && argv.length < 3 && !this.defaultCommand) {
+            argv.push('--help')
+        }
+
         const parsed = this.parseOptions(this.normalize(argv.slice(2)))
         const args = this.args = parsed.args
 
@@ -226,9 +230,15 @@ class Command extends EventEmitter {
                 this.emit('command:*', args)
             }
         }
-        else if (unknown.length) {
-            this.unknownOption(unknown)
+        else {
+            this.outputHelpIfNecessary(unknown)
+
+            // 如果没有 args 却有未知的 options 则报错
+            if (unknown.length) {
+                this.unknownOption(unknown)
+            }
         }
+
         return this
     }
     command(flag, desc, opts = {}) {
@@ -367,12 +377,15 @@ class Command extends EventEmitter {
 
         this.options.push(option)
 
-        // 以 --no-*开头的，赋值为 true
-        if (option.isNo) {
-            this[option.name()] = defaultValue || true
-        }
-        if (defaultValue !== undefined) {
-            this[option.name()] = defaultValue
+        // 只有是 --no 开头，是optional，或者是 requred 这三种的才在初始时赋值
+        if (option.isNo || option.optional || option.required) {
+            // 以 --no-*开头的，赋值为 true
+            if (option.isNo) {
+                this[option.name()] = defaultValue || true
+            }
+            if (defaultValue !== undefined) {
+                this[option.name()] = defaultValue
+            }
         }
 
         const name = `option:${option.name()}`
@@ -421,7 +434,7 @@ class Command extends EventEmitter {
             '  Usage: ' + cmdName + ' ' + this.usage(),
             '',
         ]
-        
+
         const desc = this._description ? [
             '  ' + this._description
             , ''
@@ -437,7 +450,7 @@ class Command extends EventEmitter {
 
         const commandHelp = this.commandHelp()
         const cmds = commandHelp ? [commandHelp] : []
-        
+
         return usage
             .concat(desc)
             .concat(options)
@@ -595,6 +608,16 @@ class Command extends EventEmitter {
         this.outputHelp()
         process.exit()
     }
+    outputHelpIfNecessary(options) {
+        for (let i = 0; i < options.length; i++) {
+            const option = options[i]
+            if (option === '--help' || option === '-h') {
+                this.outputHelp()
+                process.exit(0)
+            }
+        }
+    }
 }
 
 module.exports = new Command()
+
