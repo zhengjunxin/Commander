@@ -75,7 +75,7 @@ class Command extends EventEmitter {
         this.options = []
         this._noHelp = false
         this._args = []
-        this.executables = false
+        this.hasSubCommand = false
         this._execs = {}
     }
     name(name) {
@@ -88,11 +88,11 @@ class Command extends EventEmitter {
         }
     }
     parse(argv) {
-        if (this.executables) this.addImplicitHelpCommand()
+        if (this.hasSubCommand) this.addImplicitHelpCommand()
 
         this._name = this._name || path.basename(argv[1], '.js')
 
-        if (this.executables && argv.length < 3 && !this.defaultCommand) {
+        if (this.hasSubCommand && argv.length < 3 && !this.defaultCommand) {
             argv.push('--help')
         }
 
@@ -107,13 +107,17 @@ class Command extends EventEmitter {
             alias = this.commands.find(command => command.alias() === name)
         }
 
+        // 如果匹配带有 desc 的 command
         if (this._execs[name]) {
             this.executeSubCommand(argv, args, parsed.unknown)
         }
+        // 如果匹配带有 desc 的 command 的 alias
         else if (alias) {
+            // 转 alias 为 command 的本名
             args[0] = alias.name()
             this.executeSubCommand(argv, args, parsed.unknown)
         }
+        // 如果设置了默认 command
         else if (this.defaultCommand) {
             args.unshift(this.defaultCommand)
             this.executeSubCommand(argv, args, parsed.unknown)
@@ -127,7 +131,7 @@ class Command extends EventEmitter {
             const arg = args[i]
 
             if (arg === '--') {
-                // 如果发现 '--' 则剩余参数不做处理
+                // 如果发现 '--' 则剩余参数不做处理，直接 slice
                 result = result.concat(args.slice(i))
                 break;
             }
@@ -177,8 +181,10 @@ class Command extends EventEmitter {
 
             // 是 option
             if (option) {
+                // option 的参数是必须的场景
                 if (option.required) {
                     const arg = argv[++i]
+                    // 没有传必须的参数，则报错
                     if (arg == null) {
                         return this.optionMissingArg(option)
                     }
@@ -186,9 +192,10 @@ class Command extends EventEmitter {
                         this.emit(`option:${option.name()}`, arg)
                     }
                 }
+                // option 的参数是可选的场景
                 else if (option.optional) {
                     const arg = argv[i + 1]
-
+                    // 如果有可选参数，则传入参数
                     if (arg) {
                         this.emit(`option:${option.name()}`, arg)
                         i++
@@ -216,12 +223,17 @@ class Command extends EventEmitter {
                 args.push(arg)
             }
         }
-        const result = { args, unknown }
-        return result
+
+        // 排除 option 后剩余的
+        // 其中 args 作为参数被 parseArg 作为 command 消费
+        return { args, unknown }
     }
     parseArgs(args, unknown) {
+        // 如果有 args 则尝试作为 command
         if (args.length) {
             const name = `command:${args[0]}`
+
+            // 检测之前是否注册了对应的 command
             if (this.listeners(name).length) {
                 args.shift()
                 this.emit(name, args, unknown)
@@ -248,7 +260,7 @@ class Command extends EventEmitter {
 
         if (desc) {
             // 有 desc 的 command 才能有帮助输出
-            this.executables = true
+            this.hasSubCommand = true
             this._execs[cmd.name()] = true
             cmd.description(desc)
         }
@@ -257,7 +269,7 @@ class Command extends EventEmitter {
             this.defaultCommand = cmd.name()
         }
 
-        cmd.parseExpectedArgs(args)
+        cmd.setExpectedArgs(args)
         this.commands.push(cmd)
 
         if (opts.noHelp) {
@@ -267,10 +279,11 @@ class Command extends EventEmitter {
         cmd.parent = this
 
         // @ TODO 为什么要这么搞呢？
+        // 因为有 desc 的是作为 sub-command 的
         if (desc) return this
         return cmd
     }
-    parseExpectedArgs(args) {
+    setExpectedArgs(args) {
         this._args = args.map(arg => new Arg(arg)).filter(arg => arg.name)
     }
     alias(alias) {
