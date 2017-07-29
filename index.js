@@ -298,6 +298,8 @@ class Command extends EventEmitter {
             command = this
         }
 
+        // 小技巧
+        // 如果没有传参，则当做 getter 行为，返回当前的 alias
         if (!arguments.length) {
             return this._alias
         }
@@ -306,10 +308,12 @@ class Command extends EventEmitter {
         return this
     }
     description(desc) {
+        // 与 alias 类似的 setter 行为
         if (arguments.length) {
             this._description = desc
             return this
         }
+        // 与 alias 类似的 getter 行为
         else {
             return this._description
         }
