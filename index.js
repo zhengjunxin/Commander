@@ -335,7 +335,7 @@ class Command extends EventEmitter {
 
             this._args.forEach((arg, i, list) => {
                 if (arg.required && args[i] == null) {
-
+                    this.missingArgument(arg.name())
                 }
                 else if (arg.variadic) {
                     const isLast = i === list.length - 1
@@ -634,6 +634,12 @@ class Command extends EventEmitter {
                 process.exit(0)
             }
         }
+    }
+    missingArgument(name) {
+        console.error()
+        console.error("  error: missing required argument `%s'", name);
+        console.error()
+        process.exit(1)
     }
 }
 
