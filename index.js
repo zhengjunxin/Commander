@@ -247,6 +247,7 @@ class Command extends EventEmitter {
         const cmd = new Command(args.shift())
 
         if (desc) {
+            // 有 desc 的 command 才能有帮助输出
             this.executables = true
             this._execs[cmd.name()] = true
             cmd.description(desc)
