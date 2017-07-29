@@ -269,7 +269,7 @@ class Command extends EventEmitter {
             this.defaultCommand = cmd.name()
         }
 
-        cmd.setExpectedArgs(args)
+        cmd.parseExpectedArgs(args)
         this.commands.push(cmd)
 
         if (opts.noHelp) {
@@ -283,8 +283,9 @@ class Command extends EventEmitter {
         if (desc) return this
         return cmd
     }
-    setExpectedArgs(args) {
+    parseExpectedArgs(args) {
         this._args = args.map(arg => new Arg(arg)).filter(arg => arg.name)
+        return this
     }
     alias(alias) {
         let command
@@ -373,9 +374,8 @@ class Command extends EventEmitter {
         })
         return this
     }
-    arguments(desc) {
-        this._arguments = null
-        return this
+    arguments(args) {
+        return this.parseExpectedArgs(args.split(/ +/))
     }
     option(flags, description, fn, defaultValue) {
         if (typeof fn !== 'function') {
