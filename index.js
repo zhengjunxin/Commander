@@ -76,7 +76,7 @@ class Command extends EventEmitter {
         this._noHelp = false
         this._args = []
         this.hasSubCommand = false
-        this._execs = {}
+        this._subCommands = {}
     }
     name(name) {
         if (arguments.length) {
@@ -108,7 +108,7 @@ class Command extends EventEmitter {
         }
 
         // 如果匹配带有 desc 的 command
-        if (this._execs[name]) {
+        if (this._subCommands[name]) {
             this.executeSubCommand(argv, args, parsed.unknown)
         }
         // 如果匹配带有 desc 的 command 的 alias
@@ -261,7 +261,7 @@ class Command extends EventEmitter {
         if (desc) {
             // 有 desc 的 command 才能有帮助输出
             this.hasSubCommand = true
-            this._execs[cmd.name()] = true
+            this._subCommands[cmd.name()] = true
             cmd.description(desc)
         }
 
